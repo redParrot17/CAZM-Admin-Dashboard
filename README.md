@@ -1,39 +1,65 @@
 # CAZM-Admin-Dashboard
-Administrator dashboard for the HB-CAZM senior design project.
+Administrator dashboard for the HB-CAZM senior design project. This dashboard allows administrators to view, edit, and sync the available courses as well as view student schedule entries.
 
-## Setup
+- [Installation](#installation)
+- [Setup](#setup)
+- [Running](#running)
 
-> Start in the project root directory.
+# Installation
 
-### Setting up certificate
+Downloading the project from GitHub.
+```
+git clone https://github.com/redParrot17/CAZM-Admin-Dashboard.git
+```
 
-1. Generate a private key `openssl genrsa -des3 -out server.key 1024`
-2. Generate a CSR `openssl req -new -key server.key -out server.csr`
-3. Remove Passphrase from key `cp server.key server.key.org` then `openssl rsa -in server.key.org -out server.key`
-4. Generate self signed certificate `openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt`
+# Setup
 
-### Windows
+Setting up the GitHub clone to be able to run.
+```
+cd CAZM-Admin-Dashboard
+python3 -m venv venv
+source venv/bin/activate
+pip3 install -r requirements.txt
+```
 
-1. python3 -m venv venv
-2. venv\Scripts\activate
-3. set FLASK_APP=server.py
-4. pip install -r requirements.txt
-5. flask run
+Generating the certificates.
+```
+openssl genrsa -des3 -out server.key 2048
+openssl req -new -key server.key -out server.csr
+cp server.key server.key.org
+openssl rsa -in server.key.org -out server.key
+openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+```
 
-### Unix
+Creating and editing the `.env` file.
+```
+touch .env
+nano .env
+```
+```
+FLASK_APP=server.py
+FLASK_RUN_HOST=0.0.0.0
+FLASK_RUN_PORT=5005
+FLASK_RUN_CERT=server.crt
+FLASK_RUN_KEY=server.key
+```
+> The above is what should be typed in the `.env` file.
 
-1. python3 -m venv venv
-2. source venv/bin/activate
-3. export FLASK_APP=server.py
-4. export FLASK_RUN_PORT=5005
-5. export FLASK_RUN_HOST=0.0.0.0
-6. pip3 install -r requirements.txt
-7. flask run --host 0.0.0.0 --port 5005
+Save the new `.env` file with `Ctrl+O` + `Enter` + `Ctrl+X`
 
-### Env Variables
+# Running
 
-- FLASK_APP=server.py
-- FLASK_RUN_PORT=5005
-- FLASK_RUN_HOST=0.0.0.0
-- FLASK_RUN_CERT=server.crt
-- FLASK_RUN_KEY=server.key
+Navigate to the project directory if you haven't already.
+```
+cd CAZM-Admin-Dashboard
+```
+
+Activate the virtual-environment if you haven't already.
+```
+source venv/bin/activate
+```
+
+Start the web-server.
+```
+flask run
+```
