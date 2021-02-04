@@ -1,0 +1,32 @@
+[
+    {
+      "id": 0,
+      "code": "COMP 435",
+      "name": "Intro to Machine Learning",
+      "term": "Spring 2021"
+    },
+    {
+      "id": 1,
+      "code": "COMP 443",
+      "name": "Programming Languages",
+      "term": "Spring 2021"
+    },
+    {
+      "id": 2,
+      "code": "COMP 452",
+      "name": "Senior Project II",
+      "term": "Spring 2021"
+    },
+    {
+      "id": 3,
+      "code": "MATH 222",
+      "name": "Linear Algebra",
+      "term": "Spring 2021"
+    },
+    {
+      "id": 4,
+      "code": "COMP 446",
+      "name": "3D Game Design",
+      "term": "Spring 2021"
+    }
+]
