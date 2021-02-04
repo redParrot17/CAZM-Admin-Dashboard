@@ -15,6 +15,8 @@ __pycache__/
 # Certificates
 *.crt 
 *.key
+*.csr 
+*.key.org
 
 # C extensions
 *.so
