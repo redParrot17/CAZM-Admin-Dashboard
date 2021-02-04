@@ -79,4 +79,6 @@ def courses():
 def students():
     return flask.render_template('students.html')
 
-
+# if __name__ == "__main__":
+#     context = ('server.crt', 'server.key')
+#     app.run(ssl_context=context)

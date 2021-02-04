@@ -12,6 +12,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Certificates
+*.crt 
+*.key
+
 # C extensions
 *.so
 
