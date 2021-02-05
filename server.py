@@ -40,11 +40,11 @@ def login():
             error = 'Username is a required field.'
         elif not password:
             error = 'Password is a required field.'
-        elif creds.get(username, '') != password:
-            error = 'Password is incorrect.'
+        #elif creds.get(username, '') != password:
+        #    error = 'Password is incorrect.'
         else:
             user_id = 1234
-            user = User(user_id)
+            user = User(user_id, username, password)
             users[user.get_id()] = user
             flask_login.login_user(user)
 
@@ -78,7 +78,33 @@ def courses():
 @login_required
 def students():
     return flask.render_template('students.html')
+    
 
-# if __name__ == "__main__":
-#     context = ('server.crt', 'server.key')
-#     app.run(ssl_context=context)
+@app.route('/test')
+@login_required
+def test():
+    from pyfiles.gccutils.mygcc import MyGcc
+    user = flask_login.current_user
+    mygcc = MyGcc(user.username, user.password)
+
+    with open('courses.json', 'w+') as f:
+        f.write('[')
+
+    last = None
+
+    for course in mygcc.iter_all_courses():
+        course.name = course.name.split('(')[0].strip()
+
+        if last is None:
+            last = course
+        elif not last.is_same(course):
+            with open('courses.json', 'a') as f:
+                f.write(str(last.__dict__()) + ',')
+            print(last.__dict__())
+            last = course
+
+    with open('courses.json', 'a') as f:
+        f.write(str(last.__dict__()) + ']')
+    print(last.__dict__())
+
+    return 'Done'
