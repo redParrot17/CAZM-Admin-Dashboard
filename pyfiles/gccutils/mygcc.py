@@ -7,10 +7,17 @@ class MyGcc:
         # self.username = username
         # self.password = password
         self.dc = datac.DataCollection(username, password)
+        self.user_id = None
     
     def login(self):
         """ Attempts to login to myGCC """
-        pass
+        self.dc.GET('https://my.gcc.edu/ICS/', params=dict(tool='myProfileSettings'))
+        soup = self.dc.make_soup()
+        header = soup.find('span', {'id': 'CP_V_ViewHeader_SiteManagerLabel'})
+        if header is not None:
+            self.user_id = header.text.split('#')[-1].strip()
+            return True
+        return False
 
     def logout(self):
         """ Logs out of myGCC if currently logged in """

@@ -1,5 +1,6 @@
 import flask
 import flask_login
+from pyfiles.gccutils.mygcc import MyGcc
 from flask_login import login_required
 from pyfiles.user import User
 from os import urandom
@@ -40,15 +41,18 @@ def login():
             error = 'Username is a required field.'
         elif not password:
             error = 'Password is a required field.'
-        #elif creds.get(username, '') != password:
-        #    error = 'Password is incorrect.'
         else:
-            user_id = 1234
-            user = User(user_id, username, password)
-            users[user.get_id()] = user
-            flask_login.login_user(user)
+            mygcc = MyGcc(username, password)
+            if not mygcc.login():
+                error = 'Password is incorrect.'
+            else:
+                user_id = mygcc.user_id
+                user = User(user_id, username, password)
+                users[user.get_id()] = user
+                flask_login.login_user(user)
+                mygcc.logout()
 
-            return flask.redirect(flask.url_for('index'))
+                return flask.redirect(flask.url_for('index'))
     return flask.render_template('login.html', error=error)
 
 @app.route('/logout')
@@ -80,31 +84,33 @@ def students():
     return flask.render_template('students.html')
     
 
-@app.route('/test')
-@login_required
-def test():
-    from pyfiles.gccutils.mygcc import MyGcc
-    user = flask_login.current_user
-    mygcc = MyGcc(user.username, user.password)
+# @app.route('/test')
+# @login_required
+# def test():
+#     from pyfiles.gccutils.mygcc import MyGcc
+#     import json
 
-    with open('courses.json', 'w+') as f:
-        f.write('[')
+#     user = flask_login.current_user
+#     mygcc = MyGcc(user.username, user.password)
 
-    last = None
+#     with open('courses.json', 'w+') as f:
+#         f.write('[\n')
 
-    for course in mygcc.iter_all_courses():
-        course.name = course.name.split('(')[0].strip()
+#     last = None
 
-        if last is None:
-            last = course
-        elif not last.is_same(course):
-            with open('courses.json', 'a') as f:
-                f.write(str(last.__dict__()) + ',')
-            print(last.__dict__())
-            last = course
+#     for course in mygcc.iter_all_courses():
+#         course.name = course.name.split('(')[0].strip()
 
-    with open('courses.json', 'a') as f:
-        f.write(str(last.__dict__()) + ']')
-    print(last.__dict__())
+#         if last is None:
+#             last = course
+#         elif not last.is_same(course):
+#             with open('courses.json', 'a') as f:
+#                 f.write('\t' + json.dumps(last.__dict__()) + ',\n')
+#             print(json.dumps(last.__dict__()))
+#             last = course
 
-    return 'Done'
+#     with open('courses.json', 'a') as f:
+#         f.write('\t' + json.dumps(last.__dict__()) + '\n]')
+#     print(json.dumps(last.__dict__()))
+
+#     return 'Done'

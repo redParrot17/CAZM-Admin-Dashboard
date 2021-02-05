@@ -255,6 +255,7 @@ class CourseIterator:
             self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
 
             # navigate to first page
+            soup = self.dc.make_soup()
             navigator = soup.find('div', {'class': 'letterNavigator'})
             if navigator is not None:
                 navlinks = navigator.find_all('a')
