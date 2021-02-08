@@ -3,22 +3,20 @@ import flask_login
 from pyfiles.gccutils.mygcc import MyGcc
 from flask_login import login_required
 from pyfiles.user import User
+from pyfiles import database
 from os import urandom
 
+# setup flask application
 app = flask.Flask(__name__)
 app.secret_key = urandom(16)
-
-
-#TODO: replace as soon as authentication backend is implemented
-creds = {
-    'demo-username': 'demo-pa$$word'
-}
-users = {}
-
 
 # setup login manager
 login_manager = flask_login.LoginManager()
 login_manager.init_app(app)
+users = {}
+
+# setup database
+database.initialize()
 
 
 @login_manager.user_loader
@@ -73,10 +71,30 @@ def logout():
 def index():
     return flask.render_template('index.html')
 
-@app.route('/courses')
+@app.route('/courses', methods=['GET', 'POST'])
 @login_required
 def courses():
-    return flask.render_template('courses.html')
+    if flask.request.method == 'POST':
+        json = flask.request.get_json()
+        if json is not None:
+
+            to_create = json.get('create')
+            to_change = json.get('change')
+            to_delete = json.get('delete')
+
+            if to_create is not None:
+                print('New:', to_create)
+            
+            if to_change is not None:
+                print('Edit:', to_change)
+
+            if to_delete is not None:
+                database.delete_entries(to_delete)
+
+            return flask.jsonify(success=True)
+        return flask.jsonify(success=False)
+    else:
+        return flask.render_template('courses.html')
 
 @app.route('/students')
 @login_required

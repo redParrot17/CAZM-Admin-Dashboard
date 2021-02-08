@@ -58,21 +58,30 @@
             <p>Description of what this data represents.</p>
 
             <div id="toolbar">
+                <button id="resync" class="btn btn-secondary">
+                    <i class="fa fa-sync"></i> Resync
+                </button>
+                <button id="create" class="btn btn-secondary">
+                    <i class="fa fa-plus"></i> Create
+                </button>
+                <button id="change" class="btn btn-secondary" disabled>
+                    <i class="fa fa-edit"></i> Edit
+                </button>
                 <button id="remove" class="btn btn-danger" disabled>
                     <i class="fa fa-trash"></i> Delete
                 </button>
-                <button id="scrape" class="btn btn-secondary" disabled>
-                    <i class="fa fa-sync"></i> Resync
-                </button>
             </div>
+
             <table 
                 id="table"
                 data-toggle="table"
                 data-search="true"
                 data-pagination="true"
                 data-toolbar="#toolbar"
+                data-detail-view="true"
                 data-click-to-select="true"
                 data-show-fullscreen="true"
+                data-detail-formatter="detailFormatter"
                 data-url="{{ url_for('static',filename='json/courses.json') }}">
                 <thead>
                     <tr>
@@ -84,7 +93,90 @@
                     </tr>
                 </thead>
             </table>
+        </div>
+    </div>
 
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1", role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editing course</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="form-group">
+                            <input type="text" id="editCourseCode" class="form-control" readonly>
+                            <small class="form-text text-muted">Course codes cannot be modified.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <input type="text" id="editCourseName" class="form-control" placeholder="Course name">
+                            <small class="form-text text-muted">The full title of the course.</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <input type="text" id="editCourseTerm" class="form-control" placeholder="Fall 2021">
+                            <small class="form-text text-muted">The term this course is offered in.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <input type="text" id="editCourseCredits" class="form-control" placeholder="3">
+                            <small class="form-text text-muted">Number of credit hours.</small>
+                        </div>
+
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" id="editCourseSave">Save changes</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Modal -->
+    <div class="modal fade" id="createModal" tabindex="-1", role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New course</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="form-group">
+                            <input type="text" id="newCourseCode" class="form-control" placeholder="DEPT 000">
+                            <small class="form-text text-muted">The unique course identifier.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <input type="text" id="newCourseName" class="form-control" placeholder="Course name">
+                            <small class="form-text text-muted">The full title of the course.</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <input type="text" id="newCourseTerm" class="form-control" placeholder="Fall 2021">
+                            <small class="form-text text-muted">The term this course is offered in.</small>
+                        </div>
+
+                        <div class="form-group">
+                            <input type="text" id="newCourseCredits" class="form-control" placeholder="3">
+                            <small class="form-text text-muted">Number of credit hours.</small>
+                        </div>
+
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" id="createCourseSave">Save changes</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -101,12 +193,117 @@
     <!-- Bootstrap Table -->
 
     <script>
+        var $table = $('#table')
+        var $resync = $('#resync')
+        var $create = $('#create')
+        var $change = $('#change')
+        var $remove = $('#remove')
+
+        function getIdSelections() {
+            return $.map($table.bootstrapTable('getSelections'), function(row) {
+                return row.code;
+            })
+        }
+
+        function getSelectedRow() {
+            let selections = $table.bootstrapTable('getSelections');
+            if (selections.length) return selections[0];
+        }
+
+        function detailFormatter(index, row) {
+            let groups = [];
+            Object.entries(row.requisites).forEach(requisiteGroup => {
+                let lines = [];
+                requisiteGroup[1].forEach(requisite => {
+                    let line = requisite.join(' | ');
+                    lines.push(line);
+                });
+                let groupLines = lines.join('<br>');
+                groups.push(groupLines);
+            });
+            return groups.join('<p><b>OR</b></p>');
+        }
 
         $(document).ready(function () {
-            $('#sidebarCollapse').on('click', function () {
+
+            // Toggles the visibility of the sidebar
+            $('#sidebarCollapse').on('click', function() {
                 $('#sidebar').toggleClass('active');
                 $(this).toggleClass('active');
             });
+
+            // Runs whenever a course is checked or unchecked
+            $table.on('check.bs.table uncheck.bs.table ' + 
+                'check-all.bs.table uncheck-all.bs.table',
+                function() {
+                    var selections = $table.bootstrapTable('getSelections');
+
+                    // edit button should only be clickable when only one thing is selected
+                    $change.prop('disabled', selections.length !== 1);
+
+                    // delete button should only be clickable when at least one thing is selected
+                    $remove.prop('disabled', selections.length === 0);
+                });
+
+                $create.click(function() {
+                    $('#createModal').modal('show');
+                })
+
+                $('#createCourseSave').click(function() {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("POST", window.location.href, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.send(JSON.stringify({
+                        create: {
+                            code: $('#newCourseCode').val(),
+                            name: $('#newCourseName').val(),
+                            term: $('#newCourseTerm').val(),
+                            credits: $('#newCourseCredits').val()
+                        }
+                    }))
+                });
+
+                $change.click(function() {
+                    var selection = getSelectedRow();
+                    if (selection) {
+                        $('#editCourseCode').val(selection.code);
+                        $('#editCourseName').val(selection.name);
+                        $('#editCourseTerm').val(selection.term);
+                        $('#editCourseCredits').val(selection.credits);
+                        $('#editModal').modal('show');
+                    }
+                });
+
+                $('#editCourseSave').click(function() {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("POST", window.location.href, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.send(JSON.stringify({
+                        change: {
+                            code: $('#editCourseCode').val(),
+                            name: $('#editCourseName').val(),
+                            term: $('#editCourseTerm').val(),
+                            credits: $('#editCourseCredits').val()
+                        }
+                    }))
+                });
+            
+                $remove.click(function() {
+                    var codes = getIdSelections();
+                    $table.bootstrapTable('remove', {
+                        field: 'code',
+                        values: codes
+                    });
+                    $remove.prop('disabled', true);
+
+                    // send deletion request back to webserver
+                    var xhr = new XMLHttpRequest();
+                    xhr.open("POST", window.location.href, true);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                    xhr.send(JSON.stringify({
+                        delete: codes
+                    }))
+                });
         });
     </script>
 </body>
