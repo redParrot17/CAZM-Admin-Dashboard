@@ -4,8 +4,6 @@ import pyfiles.gccutils.datacollection as datac
 class MyGcc:
 
     def __init__(self, username, password):
-        # self.username = username
-        # self.password = password
         self.dc = datac.DataCollection(username, password)
         self.user_id = None
     

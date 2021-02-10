@@ -11,29 +11,12 @@ def initialize():
     #     f.writelines(lines)
     pass
 
-def create_entry(code, name, term, credits, department, requisites):
-    pass
+def create_entry(code, name, term, credits, requisites):
+    print('Creating: ', {'code': code, 'name': name, 'term': term, 'credits': credits, 'requisites': requisites})
 
-def change_entry(course_code, **changes):
-    pass
+def update_entry(code, name, term, credits, requisites):
+    print('Updating: ', {'code': code, 'name': name, 'term': term, 'credits': credits, 'requisites': requisites})
 
 def delete_entries(course_codes: list):
-    pass
-    # TODO: replace this with an actual database thing once created
-
-    # data = None
-    # with open('static/json/courses.json', 'r') as f:
-    #     data = json.load(f)
-
-    # new_data = []
-    # for entry in data:
-    #     code = entry.get('code')
-    #     if code in course_codes:
-    #         print('Deleting:', code)
-    #     else:
-    #         new_data.append(entry)
-  
-    
-    # with open('static/json/courses.json', 'w') as f:
-    #     f.write(json.dumps(new_data)) 
+    print('Deleting: ', course_codes)
     

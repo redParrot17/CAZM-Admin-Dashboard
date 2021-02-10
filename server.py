@@ -1,6 +1,7 @@
 import flask
 import flask_login
 from pyfiles.gccutils.mygcc import MyGcc
+import pyfiles.gccutils.asynccoursescraper as asynccs
 from flask_login import login_required
 from pyfiles.user import User
 from pyfiles import database
@@ -81,54 +82,40 @@ def courses():
             to_create = json.get('create')
             to_change = json.get('change')
             to_delete = json.get('delete')
+            to_resync = json.get('sync')
 
             if to_create is not None:
-                print('New:', to_create)
+                database.create_entry(
+                    to_create.get('code'),
+                    to_create.get('name'),
+                    to_create.get('term'),
+                    to_create.get('credits', 0.0),
+                    to_create.get('requisites', []))
             
             if to_change is not None:
-                print('Edit:', to_change)
+                database.update_entry(
+                    to_change.get('code'),
+                    to_change.get('name'),
+                    to_change.get('term'),
+                    to_change.get('credits', 0.0),
+                    to_change.get('requisites', []))
 
             if to_delete is not None:
                 database.delete_entries(to_delete)
 
+            if to_resync is not None:
+                if to_resync:
+                    user = flask_login.current_user
+                    asynccs.start(user.username, user.password)
+                else:
+                    asynccs.stop()
+
             return flask.jsonify(success=True)
         return flask.jsonify(success=False)
     else:
-        return flask.render_template('courses.html')
+        return flask.render_template('courses.html', syncing=asynccs.is_running)
 
 @app.route('/students')
 @login_required
 def students():
     return flask.render_template('students.html')
-    
-
-# @app.route('/test')
-# @login_required
-# def test():
-#     from pyfiles.gccutils.mygcc import MyGcc
-#     import json
-
-#     user = flask_login.current_user
-#     mygcc = MyGcc(user.username, user.password)
-
-#     with open('courses.json', 'w+') as f:
-#         f.write('[\n')
-
-#     last = None
-
-#     for course in mygcc.iter_all_courses():
-#         course.name = course.name.split('(')[0].strip()
-
-#         if last is None:
-#             last = course
-#         elif not last.is_same(course):
-#             with open('courses.json', 'a') as f:
-#                 f.write('\t' + json.dumps(last.__dict__()) + ',\n')
-#             print(json.dumps(last.__dict__()))
-#             last = course
-
-#     with open('courses.json', 'a') as f:
-#         f.write('\t' + json.dumps(last.__dict__()) + '\n]')
-#     print(json.dumps(last.__dict__()))
-
-#     return 'Done'

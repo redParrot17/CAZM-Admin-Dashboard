@@ -59,7 +59,11 @@
 
             <div id="toolbar">
                 <button id="resync" class="btn btn-secondary">
+                    {% if syncing %}
+                    <i class="fa fa-sync"></i> Abort
+                    {% else %}
                     <i class="fa fa-sync"></i> Resync
+                    {% endif %}
                 </button>
                 <button id="create" class="btn btn-secondary">
                     <i class="fa fa-plus"></i> Create
@@ -124,9 +128,53 @@
                         </div>
 
                         <div class="form-group">
-                            <input type="text" id="editCourseCredits" class="form-control" placeholder="3">
+                            <input type="text" id="editCourseCredits" class="form-control" placeholder="3" value="3">
                             <small class="form-text text-muted">Number of credit hours.</small>
                         </div>
+
+                        <h5>Requisites</h5>
+                        <hr class="mt-2"/>
+
+                        <!-- Requisite Input Fields -->
+
+                        <div class="form-row">
+                            <!-- Requisite group identifier -->
+                            <div class="form-group col-md-2">
+                                <input id="editCourseRequisiteGroupNum" 
+                                    type="number" 
+                                    class="form-control" 
+                                    placeholder="1" 
+                                    value="1">
+                                <small class="form-text text-muted">Group</small>
+                            </div>
+
+                            <!-- Requisite type identifier -->
+                            <div class="form-group col-md-4">
+                                <select class="form-control" id="editCourseRequisiteType">
+                                    <option>Prerequisite</option>
+                                    <option>Corequisite</option>
+                                    <option>Other</option>
+                                </select>
+                                <small class="from-text text-muted">Requisite type</small>
+                            </div>
+
+                            <!-- Requisite course code -->
+                            <div class="form-group col-md-4">
+                                <input id="editCourseRequisiteCode" type="text" class="form-control" placeholder="DEPT 000">
+                                <small class="form-text text-muted">Course code</small>
+                            </div>
+
+                            <!-- Requisite add button -->
+                            <div class="form-group col-md-2">
+                                <button id="editCourseRequisiteAdd" type="button" class="btn btn-secondary">Add</button>
+                            </div>
+                        </div>
+
+                        <!-- Requisite Display Table -->
+                        <table id="editCourseRequisiteTable"
+                            data-toggle="table"
+                            data-height="250">
+                        </table>
 
                     </form>
                 </div>
@@ -166,9 +214,53 @@
                         </div>
 
                         <div class="form-group">
-                            <input type="text" id="newCourseCredits" class="form-control" placeholder="3">
+                            <input type="number" id="newCourseCredits" class="form-control" placeholder="3" value="3">
                             <small class="form-text text-muted">Number of credit hours.</small>
                         </div>
+
+                        <h5>Requisites</h5>
+                        <hr class="mt-2"/>
+                        
+                        <!-- Requisite Input Fields -->
+
+                        <div class="form-row">
+                            <!-- Requisite group identifier -->
+                            <div class="form-group col-md-2">
+                                <input id="newCourseRequisiteGroupNum" 
+                                    type="number" 
+                                    class="form-control" 
+                                    placeholder="1" 
+                                    value="1">
+                                <small class="form-text text-muted">Group</small>
+                            </div>
+
+                            <!-- Requisite type identifier -->
+                            <div class="form-group col-md-4">
+                                <select class="form-control" id="newCourseRequisiteType">
+                                    <option>Prerequisite</option>
+                                    <option>Corequisite</option>
+                                    <option>Other</option>
+                                </select>
+                                <small class="from-text text-muted">Requisite type</small>
+                            </div>
+
+                            <!-- Requisite course code -->
+                            <div class="form-group col-md-4">
+                                <input id="newCourseRequisiteCode" type="text" class="form-control" placeholder="DEPT 000">
+                                <small class="form-text text-muted">Course code</small>
+                            </div>
+
+                            <!-- Requisite add button -->
+                            <div class="form-group col-md-2">
+                                <button id="newCourseRequisiteAdd" type="button" class="btn btn-secondary">Add</button>
+                            </div>
+                        </div>
+
+                        <!-- Requisite Display Table -->
+                        <table id="createCourseRequisiteTable"
+                            data-toggle="table"
+                            data-height="250">
+                        </table>
 
                     </form>
                 </div>
@@ -189,29 +281,16 @@
     <!-- Bootstrap JS -->
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js" integrity="sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/bootstrap-table@1.18.2/dist/bootstrap-table.min.js"></script>
- 
-    <!-- Bootstrap Table -->
+
+    <script src="{{ url_for('static', filename='js/courses.js') }}"></script>
+
+    <script type="text/javascript">
+        setSyncing('{{syncing|tojson}}');
+    </script>
 
     <script>
-        var $table = $('#table')
-        var $resync = $('#resync')
-        var $create = $('#create')
-        var $change = $('#change')
-        var $remove = $('#remove')
-
-        function getIdSelections() {
-            return $.map($table.bootstrapTable('getSelections'), function(row) {
-                return row.code;
-            })
-        }
-
-        function getSelectedRow() {
-            let selections = $table.bootstrapTable('getSelections');
-            if (selections.length) return selections[0];
-        }
-
         function detailFormatter(index, row) {
-            let groups = [];
+        let groups = [];
             Object.entries(row.requisites).forEach(requisiteGroup => {
                 let lines = [];
                 requisiteGroup[1].forEach(requisite => {
@@ -223,88 +302,6 @@
             });
             return groups.join('<p><b>OR</b></p>');
         }
-
-        $(document).ready(function () {
-
-            // Toggles the visibility of the sidebar
-            $('#sidebarCollapse').on('click', function() {
-                $('#sidebar').toggleClass('active');
-                $(this).toggleClass('active');
-            });
-
-            // Runs whenever a course is checked or unchecked
-            $table.on('check.bs.table uncheck.bs.table ' + 
-                'check-all.bs.table uncheck-all.bs.table',
-                function() {
-                    var selections = $table.bootstrapTable('getSelections');
-
-                    // edit button should only be clickable when only one thing is selected
-                    $change.prop('disabled', selections.length !== 1);
-
-                    // delete button should only be clickable when at least one thing is selected
-                    $remove.prop('disabled', selections.length === 0);
-                });
-
-                $create.click(function() {
-                    $('#createModal').modal('show');
-                })
-
-                $('#createCourseSave').click(function() {
-                    var xhr = new XMLHttpRequest();
-                    xhr.open("POST", window.location.href, true);
-                    xhr.setRequestHeader('Content-Type', 'application/json');
-                    xhr.send(JSON.stringify({
-                        create: {
-                            code: $('#newCourseCode').val(),
-                            name: $('#newCourseName').val(),
-                            term: $('#newCourseTerm').val(),
-                            credits: $('#newCourseCredits').val()
-                        }
-                    }))
-                });
-
-                $change.click(function() {
-                    var selection = getSelectedRow();
-                    if (selection) {
-                        $('#editCourseCode').val(selection.code);
-                        $('#editCourseName').val(selection.name);
-                        $('#editCourseTerm').val(selection.term);
-                        $('#editCourseCredits').val(selection.credits);
-                        $('#editModal').modal('show');
-                    }
-                });
-
-                $('#editCourseSave').click(function() {
-                    var xhr = new XMLHttpRequest();
-                    xhr.open("POST", window.location.href, true);
-                    xhr.setRequestHeader('Content-Type', 'application/json');
-                    xhr.send(JSON.stringify({
-                        change: {
-                            code: $('#editCourseCode').val(),
-                            name: $('#editCourseName').val(),
-                            term: $('#editCourseTerm').val(),
-                            credits: $('#editCourseCredits').val()
-                        }
-                    }))
-                });
-            
-                $remove.click(function() {
-                    var codes = getIdSelections();
-                    $table.bootstrapTable('remove', {
-                        field: 'code',
-                        values: codes
-                    });
-                    $remove.prop('disabled', true);
-
-                    // send deletion request back to webserver
-                    var xhr = new XMLHttpRequest();
-                    xhr.open("POST", window.location.href, true);
-                    xhr.setRequestHeader('Content-Type', 'application/json');
-                    xhr.send(JSON.stringify({
-                        delete: codes
-                    }))
-                });
-        });
     </script>
 </body>
 

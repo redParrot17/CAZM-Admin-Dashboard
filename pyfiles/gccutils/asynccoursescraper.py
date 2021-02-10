@@ -1,99 +1,48 @@
+from pyfiles.gccutils.datacollection import DataCollection
 from pyfiles.gccutils.course import Course
-from bs4 import BeautifulSoup
-import requests
+import pyfiles.database as db
+import threading
+import json
+import re
 
 
-class DataCollection:
-    BASEURL = 'https://my.gcc.edu'
-
-    def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.session = None
-        self.response = None
+is_running = False
+scraper = None
 
 
-    def GET(self, url, **kwargs):
-        if self.session is None:
-            self._create_session()
-        self.response = self.session.get(url, **kwargs)
-        return self.response
-    
-    def POST(self, url, **kwargs):
-        if self.session is None:
-            self._create_session()
-        self.response = self.session.post(url, **kwargs)
-        return self.response
-
-    def make_soup(self):
-        if self.response is not None:
-            return BeautifulSoup(self.response.text, features='html.parser')
-        return None
-    
-    def prepare_payload(self, payload: dict={}, postback: str=None, include_search=True) -> dict:
-        soup = self.make_soup()
-        if soup is not None:
-            for hiddenInput in soup.find_all('input', {'type': 'hidden'}):
-                input_name = hiddenInput.get('name')
-                input_value = hiddenInput.get('value')
-                payload[input_name] = input_value
-        if postback is not None:
-            postback = postback.replace('javascript:__doPostBack(', '')
-            postback = postback.replace(')', '')
-            postback = postback.replace("'", '')
-            eventtarget, eventargument = tuple(postback.split(',', 1))
-            payload['__EVENTTARGET'] = eventtarget
-            payload['__EVENTARGUMENT'] = eventargument
-        if include_search:
-            payload['siteNavBar$ctl00$tbSearch'] = ''
-        return payload
-
-
-    def _create_session(self):
-        url = f'{self.BASEURL}/ICS/'
-        payload = {
-            '_scriptManager_HiddenField': '',
-            '__EVENTTARGET': '',
-            '__EVENTARGUMENT': '',
-            '__VIEWSTATE': '',
-            '__VIEWSTATEGENERATOR': '',
-            '___BrowserRefresh': '',
-            'siteNavBar$ctl00$tbSearch': '',
-            'userName': self.username,
-            'password': self.password,
-            'siteNavBar$btnLogin': 'Login'}
-        self.session = requests.Session()
-        self.response = self.session.post(url, data=payload)
-
-
-class CourseIterator:
+class CourseScraper(threading.Thread):
     COURSEURL = 'https://my.gcc.edu/ICS/Academics/Home.jnz'
     QUERYPARAMS = {
         'portlet': 'AddDrop_Courses',
         'screen': 'Advanced Course Search',
         'screenType': 'next'}
 
-    def __init__(self, data_collection: DataCollection):
-        self.dc = data_collection
+    def __init__(self, dc, callback):
+        threading.Thread.__init__(self)
+        self.callback = callback
         self.current_term = None
         self.remaining_terms = []
+        self.dc = dc
+    
+    def run(self):
+        global is_running
+        print('web scraping started')
 
-    def iter_all_courses(self):
         self.nav_to_search()
         self.init_term_data()
         self.nav_to_first_term()
 
-        while True:
-            while True:
+        while True and is_running:
+            while True and is_running:
 
                 # iterate over each course on the page
                 soup = self.dc.make_soup()
                 table = soup.find('tbody', {'class': 'gbody'})
                 if table is not None:
                     for course_row in table.find_all('tr'):
-                        if 'subItem' in course_row.get('class', ''):
+                        if not is_running or 'subItem' in course_row.get('class', ''):
                             continue
-                        yield self.course_row_to_course(course_row)
+                        self.callback(self.course_row_to_course(course_row))
                 
                 # navigate to next page
                 if not self.try_nav_next_page(soup):
@@ -102,7 +51,10 @@ class CourseIterator:
             # navigate to next term
             if not self.try_nav_next_term():
                 break  # stop if this was the last term
+        self.callback(None)
 
+        print('web scraping finished')
+        is_running = False
 
     def nav_to_search(self):
         self.dc.GET(self.COURSEURL, params=self.QUERYPARAMS)
@@ -117,7 +69,7 @@ class CourseIterator:
                     self.current_term = choice_value
                 else:
                     self.remaining_terms.append(choice_value)
-    
+
     def nav_to_first_term(self):
         payload = {
             'pg0$V$ddlTerm': self.current_term,
@@ -143,7 +95,7 @@ class CourseIterator:
             'pg0$V$btnSearch': 'Search'}
         payload = self.dc.prepare_payload(payload)
         self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-    
+
     def course_row_to_course(self, row):
 
         # navigate to course page
@@ -168,7 +120,7 @@ class CourseIterator:
         course_term = term_elem.text.strip().strip(',') if term_elem else None
         course_credits = float(cred_elem.text.strip()) if cred_elem else 0.0
         course_department = dept_elem.text.strip() if dept_elem else None
-        course_requisites = {}
+        course_requisites = []
 
         #fetch prerequisites
         prereqlink = soup.find('a', {'id': 'pg0_V_lnkbCourseRequisites'})
@@ -196,8 +148,26 @@ class CourseIterator:
         # construct course class from data
         course = Course(course_code, course_title, course_term, course_credits, course_department, course_requisites)
         return course
-    
+
     def parse_course_requisites(self, soup):
+        pattern = re.compile(r'([A-Z]{2,5})([0-9]{2,4}[A-Z]*)')
+
+        def parse_req_type(_req_type: str) -> str:
+            if _req_type.startswith('Prerequisite'):
+                return 'prerequisite'
+            if _req_type.startswith('Corequisite'):
+                return 'corequisite'
+            return 'other'
+
+
+        def parse_req_name(_req_name: str) -> str:
+            first_word = _req_name.split(' ', 1)[0]
+            match = pattern.match(first_word)
+            if match:
+                first, second = match.groups()
+                return first + ' ' + second
+            return first_word
+
         requisites = {}
         table = soup.find('tbody', {'class': 'gbody'})
         if table is not None:
@@ -214,8 +184,8 @@ class CourseIterator:
                     group_num = int(rgroup_val)
                     if group_num not in requisites:
                         requisites[group_num] = []
-                    requisites[group_num].append((rtype_val, rname_val))
-        return requisites
+                    requisites[group_num].append((parse_req_type(rtype_val), parse_req_name(rname_val)))
+        return [v for _, v in requisites.items()]
 
                 
 
@@ -266,3 +236,49 @@ class CourseIterator:
 
             return True
         return False
+
+
+last = None
+def course_callback(course):
+    global last
+    if course is not None:
+        course.name = course.name.split('(')[0].strip()
+        if last is None:
+            last = course
+        elif not last.is_same(course):
+            db.create_entry(
+                course.code,
+                course.name,
+                course.term,
+                course.credits,
+                course.requisites)
+            last = course
+    elif last:
+        db.create_entry(
+            last.code,
+            last.name,
+            last.term,
+            last.credits,
+            last.requisites)
+        last = None
+
+
+def start(username, password):
+    global is_running
+    global scraper
+    global last
+    if is_running or (scraper and scraper.is_alive()):
+        return
+    last = None
+    is_running = True
+    dc = DataCollection(username, password)
+    scraper = CourseScraper(dc, course_callback)
+    scraper.start()
+
+
+def stop():
+    global is_running
+    global scraper
+    is_running = False
+    scraper = None
+
