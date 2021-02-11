@@ -85,8 +85,7 @@
                 data-detail-view="true"
                 data-click-to-select="true"
                 data-show-fullscreen="true"
-                data-detail-formatter="detailFormatter"
-                data-url="{{ url_for('static',filename='json/courses.json') }}">
+                data-detail-formatter="detailFormatter">
                 <thead>
                     <tr>
                         <th data-field="state" data-checkbox="true"></th>
@@ -286,6 +285,7 @@
 
     <script type="text/javascript">
         setSyncing('{{syncing|tojson}}');
+        setData(JSON.parse('{{data|tojson}}'))
     </script>
 
     <script>

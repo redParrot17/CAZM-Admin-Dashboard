@@ -1,11 +1,18 @@
 import flask
 import flask_login
 from pyfiles.gccutils.mygcc import MyGcc
-import pyfiles.gccutils.asynccoursescraper as asynccs
+from pyfiles.gccutils.coursesearch import AsyncCourseScraper
 from flask_login import login_required
 from pyfiles.user import User
-from pyfiles import database
+from pyfiles.database import Database
 from os import urandom
+import re
+
+# declare shared variables
+database = Database('mysql.cnf')
+course_fetcher = None
+# cached_courses = []
+users = {}
 
 # setup flask application
 app = flask.Flask(__name__)
@@ -14,11 +21,67 @@ app.secret_key = urandom(16)
 # setup login manager
 login_manager = flask_login.LoginManager()
 login_manager.init_app(app)
-users = {}
 
-# setup database
-database.initialize()
 
+def validate_dict_integrity(course):
+    code = course.get('code')
+    name = course.get('name')
+    hours = course.get('credits', 0.0)
+    term = course.get('term')
+    old_term = course.get('oldterm')
+    requisites = course.get('requisites', [])
+
+    # validate course code
+    if code is None or \
+            not isinstance(code, str) or \
+            not re.match(r'[A-Z]{2,5}\s[0-9]{2,4}[A-Z ]*', code):
+        return None, 'course code is invalid'
+
+    # validate course name
+    if not name or not isinstance(name, str):
+        return None, 'course name is invalid'
+
+    # validate course hours
+    if isinstance(hours, str):
+        try: hours = float(hours)
+        except ValueError: pass
+    if not isinstance(hours, float) and not isinstance(hours, int):
+        return None, 'course credits is invalid'
+
+    # validate course term
+    if not isinstance(term, str) or \
+            not re.match(r'[A-Za-z ]+\s[0-9]{4}', term):
+        return None, 'course term is invalid'
+
+    # validate course term
+    if isinstance(old_term, str) and \
+            not re.match(r'[A-Za-z ]+\s[0-9]{4}', old_term):
+        return None, 'course old term is invalid'
+
+    # validate requisites
+    if not isinstance(requisites, list):
+        return None, 'course requisites is invalid'
+
+    semester, year = term.rsplit(' ', 1)
+    year = int(year)
+
+    result = {
+        'code': code,
+        'name': name,
+        'credits': hours,
+        'semester': semester,
+        'year': year,
+        'requisites': requisites
+    }
+
+    if old_term is not None:
+        semester, year = old_term.rsplit(' ', 1)
+        year = int(year)
+        result['old_semester'] = semester
+        result['old_year'] = year
+
+    return result, None
+    
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -75,6 +138,10 @@ def index():
 @app.route('/courses', methods=['GET', 'POST'])
 @login_required
 def courses():
+    global course_fetcher
+    # global cached_courses
+    global database
+
     if flask.request.method == 'POST':
         json = flask.request.get_json()
         if json is not None:
@@ -85,35 +152,64 @@ def courses():
             to_resync = json.get('sync')
 
             if to_create is not None:
-                database.create_entry(
-                    to_create.get('code'),
-                    to_create.get('name'),
-                    to_create.get('term'),
-                    to_create.get('credits', 0.0),
-                    to_create.get('requisites', []))
+                course, error = validate_dict_integrity(to_create)
+                if not course:
+                    print(error)
+                else:
+                    database.update_course(
+                        code=course['code'],
+                        name=course['name'],
+                        hours=course['credits'],
+                        semester=course['semester'],
+                        year=course['year'],
+                        requisites=course['requisites'])
             
-            if to_change is not None:
-                database.update_entry(
-                    to_change.get('code'),
-                    to_change.get('name'),
-                    to_change.get('term'),
-                    to_change.get('credits', 0.0),
-                    to_change.get('requisites', []))
+            if to_change is not None and 'oldterm' in to_change:
+                course, error = validate_dict_integrity(to_change)
+                if not course:
+                    print(error)
+                else:
+                    database.update_course(
+                        code=course['code'],
+                        old_semester=course['old_semester'],
+                        old_year=course['old_year'],
+                        name=course['name'],
+                        hours=course['credits'],
+                        semester=course['semester'],
+                        year=course['year'],
+                        requisites=course['requisites'])
 
             if to_delete is not None:
-                database.delete_entries(to_delete)
+                delete_argument = []
+                for code, term in to_delete:
+                    semester, year = term.rsplit(' ', 1)
+                    year = int(year)
+                    delete_argument.append((code, semester, year))
+                database.delete_courses(delete_argument)
 
             if to_resync is not None:
                 if to_resync:
-                    user = flask_login.current_user
-                    asynccs.start(user.username, user.password)
-                else:
-                    asynccs.stop()
+                    if not course_fetcher or not course_fetcher.is_running():
+                        user = flask_login.current_user
+                        course_fetcher = AsyncCourseScraper(user.username, user.password, 'mysql.cnf')
+                        course_fetcher.start()
+                elif course_fetcher:
+                    course_fetcher.stop()
+                    course_fetcher = None
 
             return flask.jsonify(success=True)
         return flask.jsonify(success=False)
     else:
-        return flask.render_template('courses.html', syncing=asynccs.is_running)
+
+        # check if webscraping is currently happening
+        is_running = course_fetcher is not None and course_fetcher.is_running()
+
+        # fetch the courses to display on the webpage
+        all_courses = list(database.get_all_courses())  # if not is_running else cached_courses
+        # cached_courses = all_courses
+
+        # respond with the requested webpage
+        return flask.render_template('courses.html', syncing=is_running, data=all_courses)
 
 @app.route('/students')
 @login_required

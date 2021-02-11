@@ -38,10 +38,23 @@ let $createCourseRequisiteAdd = $('#newCourseRequisiteAdd');
 let uid = 0;
 let requisites = [];
 let isSyncing = false;
+let data = [];
+
+// Tracking edited courses
+let oldTerm = null;
 
 
 function setSyncing(value) {
     isSyncing = value === 'true';
+}
+
+function setData(d) {
+    data = d;
+    let id = 0;
+    data.forEach(function(element) {
+        element.id = id++;
+    })
+    $coursesTable.bootstrapTable('load', data);
 }
 
 
@@ -106,13 +119,6 @@ function httpPost(object) {
     xhr.send(JSON.stringify(object));
 }
 
-// Gets the course codes of the selected courses
-function getIdSelections() {
-    return $.map($coursesTable.bootstrapTable('getSelections'), function(row) {
-        return row.code;
-    });
-}
-
 // Gets the currently selected row
 function getSelectedRow() {
     let selections = $coursesTable.bootstrapTable('getSelections');
@@ -152,6 +158,8 @@ $(document).ready(function() {
         $('#sidebar').toggleClass('active');
         $(this).toggleClass('active');
     });
+
+    $coursesTable.bootstrapTable('load', data);
 
     // Toggle enabled state of delete button on selection
     $coursesTable.on('check.bs.table uncheck.bs.table check-all.bs.table uncheck-all.bs.table', function() {
@@ -234,6 +242,7 @@ $(document).ready(function() {
     $editCourseBtn.click(function() {
         let selection = getSelectedRow();
         if (selection) {
+            oldTerm = selection.term;
             $editCourseCode.val(selection.code);
             $editCourseName.val(selection.name);
             $editCourseTerm.val(selection.term);
@@ -262,6 +271,7 @@ $(document).ready(function() {
         httpPost({
             change: {
                 code: $editCourseCode.val(),
+                oldterm: oldTerm,
                 name: $editCourseName.val(),
                 term: $editCourseTerm.val(),
                 credits: $editCourseCredits.val(),
@@ -272,19 +282,24 @@ $(document).ready(function() {
 
     // Handles when the user clicks to delete existing courses
     $deleteCoursesBtn.click(function() {
-        let codes = getIdSelections();
+        let row_ids = $.map($coursesTable.bootstrapTable('getSelections'), function(row) {
+            return row.id;
+        });
+        let postback = $.map($coursesTable.bootstrapTable('getSelections'), function(row) {
+            return [[row.code, row.term]];
+        });
 
         // directly remove the entries from the table to avoid having to reload it
         $coursesTable.bootstrapTable('remove', {
-            field: 'code',
-            values: codes
+            field: 'id',
+            values: row_ids
         });
 
         // disable the deletion button since nothing is selected
         $deleteCoursesBtn.prop('disabled', true);
 
         // send deletion request to webserver
-        httpPost({ delete: codes });
+        httpPost({ delete: postback });
     });
 
 });

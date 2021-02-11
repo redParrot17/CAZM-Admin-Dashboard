@@ -151,6 +151,9 @@ dmypy.json
 # profiling data
 .prof
 
+# mysql config
+*.cnf
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 

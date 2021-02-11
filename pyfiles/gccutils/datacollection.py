@@ -1,4 +1,3 @@
-from pyfiles.gccutils.course import Course
 from bs4 import BeautifulSoup
 import requests
 
@@ -7,50 +6,100 @@ class DataCollection:
     BASEURL = 'https://my.gcc.edu'
 
     def __init__(self, username, password):
-        self.username = username
-        self.password = password
-        self.session = None
+        self.__username = username
+        self.__password = password
+        self.__session = None
         self.response = None
 
-
-    def GET(self, url, **kwargs):
-        if self.session is None:
-            self._create_session()
-        self.response = self.session.get(url, **kwargs)
-        return self.response
-    
-    def POST(self, url, **kwargs):
-        if self.session is None:
-            self._create_session()
-        self.response = self.session.post(url, **kwargs)
+    def http_get(self, url, **kwargs):
+        if self.__session is None:
+            self.create_session()
+        self.response = self.__session.get(url, **kwargs)
         return self.response
 
-    def make_soup(self):
+    def http_post(self, url, **kwargs):
+        if self.__session is None:
+            self.create_session()
+        self.response = self.__session.post(url, **kwargs)
+        return self.response
+
+    def ensure_screen(self, url):
+        if self.response is None or self.response.url != url:
+            self.http_get(url)
+
+    def to_url(self, path):
+        if path.startswith(self.BASEURL):
+            return path
+        path = '/' + path.lstrip('/')
+        return self.BASEURL + path
+
+    def make_soup(self, features='html.parser'):
+        """Makes a BeautifulSoup object for the last GET or POST response.
+
+        :param features: - Desirable features of the parser to be
+         used. This may be the name of a specific parser ("lxml",
+         "lxml-xml", "html.parser", or "html5lib") or it may be the
+         type of markup to be used ("html", "html5", "xml"). It's
+         recommended that you name a specific parser, so that
+         Beautiful Soup gives you the same results across platforms
+         and virtual environments. (defaults to html.parser)
+
+        :return: the BeautifulSoup object or None if no response exists
+        """
         if self.response is not None:
-            return BeautifulSoup(self.response.text, features='html.parser')
+            return BeautifulSoup(self.response.text, features=features)
         return None
-    
-    def prepare_payload(self, payload: dict={}, postback: str=None, include_search=True) -> dict:
+
+    def prepare_payload(self, payload=None, postback: str=None, search=''):
+        """This formats a payload dictionary to include within POST and GET requests.
+
+        https://my.gcc.edu/ uses the values of hidden html input tags to keep track
+        of the context of actions. It requires the values of those tags to be attached
+        to the payload, so this method automatically takes care of adding in those values.
+
+        :param payload: - the dictionary to prepare (defaults to making a new dictionary)
+        :param postback: - an optional postback string "javascript:__doPostBack('eventTargetValue','eventArgumentValue')"
+        :param search: - the default search parameter (set to None to exclude search)
+        :return: the newly prepared payload dictionary
+        """
+
+        # default to a new empty dictionary if none was provided
+        if payload is None:
+            payload = {}
+
+        # mygcc uses the values of several hidden html tags to track the
+        # current viewstate of the user in order to determine context.
+        # This fetches and includes those tags within the payload.
         soup = self.make_soup()
         if soup is not None:
-            for hiddenInput in soup.find_all('input', {'type': 'hidden'}):
-                input_name = hiddenInput.get('name')
-                input_value = hiddenInput.get('value')
-                payload[input_name] = input_value
+            for hidden_input in soup.find_all('input', {'type': 'hidden'}):
+                input_name = hidden_input.get('name')
+                input_value = hidden_input.get('value')
+                if input_name is not None and input_value is not None:
+                    payload[input_name] = input_value
+
+        # If a formatted postback string was included, we need to parse it
+        # this string tells mygcc what action the user is attempting to do.
         if postback is not None:
+            # javascript:__doPostBack('eventTargetValue','eventArgumentValue')
             postback = postback.replace('javascript:__doPostBack(', '')
             postback = postback.replace(')', '')
             postback = postback.replace("'", '')
-            eventtarget, eventargument = tuple(postback.split(',', 1))
-            payload['__EVENTTARGET'] = eventtarget
-            payload['__EVENTARGUMENT'] = eventargument
-        if include_search:
-            payload['siteNavBar$ctl00$tbSearch'] = ''
+            postback_elements = postback.split(',', 1)
+            if len(postback_elements) == 2:
+                payload['__EVENTTARGET'] = postback_elements[0]
+                payload['__EVENTARGUMENT'] = postback_elements[1]
+
+        # This empty search tag is included in most requests, so we
+        # automatically include it unless told otherwise.
+        if search is not None:
+            payload['siteNavBar$ctl00$tbSearch'] = search
+
         return payload
 
-
-    def _create_session(self):
-        url = f'{self.BASEURL}/ICS/'
+    def create_session(self):
+        """Creates a new Session and performs login"""
+        url = self.to_url('/ICS/')
         payload = {
             '_scriptManager_HiddenField': '',
             '__EVENTTARGET': '',
@@ -59,210 +108,8 @@ class DataCollection:
             '__VIEWSTATEGENERATOR': '',
             '___BrowserRefresh': '',
             'siteNavBar$ctl00$tbSearch': '',
-            'userName': self.username,
-            'password': self.password,
+            'userName': self.__username,
+            'password': self.__password,
             'siteNavBar$btnLogin': 'Login'}
-        self.session = requests.Session()
-        self.response = self.session.post(url, data=payload)
-
-
-class CourseIterator:
-    COURSEURL = 'https://my.gcc.edu/ICS/Academics/Home.jnz'
-    QUERYPARAMS = {
-        'portlet': 'AddDrop_Courses',
-        'screen': 'Advanced Course Search',
-        'screenType': 'next'}
-
-    def __init__(self, data_collection: DataCollection):
-        self.dc = data_collection
-        self.current_term = None
-        self.remaining_terms = []
-
-    def iter_all_courses(self):
-        self.nav_to_search()
-        self.init_term_data()
-        self.nav_to_first_term()
-
-        while True:
-            while True:
-
-                # iterate over each course on the page
-                soup = self.dc.make_soup()
-                table = soup.find('tbody', {'class': 'gbody'})
-                if table is not None:
-                    for course_row in table.find_all('tr'):
-                        if 'subItem' in course_row.get('class', ''):
-                            continue
-                        yield self.course_row_to_course(course_row)
-                
-                # navigate to next page
-                if not self.try_nav_next_page(soup):
-                    break  # stop if this was the last page
-
-            # navigate to next term
-            if not self.try_nav_next_term():
-                break  # stop if this was the last term
-
-
-    def nav_to_search(self):
-        self.dc.GET(self.COURSEURL, params=self.QUERYPARAMS)
-    
-    def init_term_data(self):
-        soup = self.dc.make_soup()
-        if soup is not None:
-            for term_choice in soup.find('select', {'id': 'pg0_V_ddlTerm'}).find_all('option'):
-                choice_value = term_choice.get('value')
-                selected = term_choice.get('selected', '') == 'selected'
-                if selected:
-                    self.current_term = choice_value
-                else:
-                    self.remaining_terms.append(choice_value)
-    
-    def nav_to_first_term(self):
-        payload = {
-            'pg0$V$ddlTerm': self.current_term,
-            'pg0$V$ddlDept': '',
-            'pg0$V$ddlCourseFrom': '',
-            'pg0$V$ddlCourseTo': '',
-            'pg0$V$ddlTitleRestrictor': 'BeginsWith',
-            'pg0$V$txtTitleRestrictor': '',
-            'pg0$V$ddlCourseRestrictor': 'BeginsWith',
-            'pg0$V$txtCourseRestrictor': '',
-            'pg0$V$ddlDivision': 'UG',
-            'pg0$V$ddlMethod': '',
-            'pg0$V$txtRefRestrictor': '',
-            'pg0$V$ddlTimeFrom': '',
-            'pg0$V$ddlTimeTo': '',
-            'pg0$V$days': 'rdAnyDay',
-            'pg0$V$ddlFaculty': '',
-            'pg0$V$ddlCampus': '',
-            'pg0$V$ddlBuilding': '',
-            'pg0$V$ddlSecStatus': 'OpenFull',
-            'pg0$V$txtMin': '',
-            'pg0$V$txtMax': '',
-            'pg0$V$btnSearch': 'Search'}
-        payload = self.dc.prepare_payload(payload)
-        self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-    
-    def course_row_to_course(self, row):
-
-        # navigate to course page
-        postback = row.find('a').get('href')
-        course_code = ' '.join(row.find('a').text.strip().split(' ')[:2])
-        payload = {
-            'pg0$V$ddlTerm': self.current_term,
-            'pg0$V$ddlDivision': 'UG'}
-        payload = self.dc.prepare_payload(payload, postback)
-        self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-
-        # fetch data from this page
-        soup = self.dc.make_soup()
-        details = soup.find('div', {'id': 'pg0_V_divCourseDetails'})
-
-        title_elem = details.find('b')
-        term_elem = details.find('span', {'id': 'pg0_V_lblTermDescValue'})
-        cred_elem = details.find('span', {'id': 'pg0_V_lblCreditHoursValue'})
-        dept_elem = details.find('span', {'id': 'pg0_V_lblDepartmentValue'})
-
-        course_title = title_elem.text if title_elem else None
-        course_term = term_elem.text.strip().strip(',') if term_elem else None
-        course_credits = float(cred_elem.text.strip()) if cred_elem else 0.0
-        course_department = dept_elem.text.strip() if dept_elem else None
-        course_requisites = {}
-
-        #fetch prerequisites
-        prereqlink = soup.find('a', {'id': 'pg0_V_lnkbCourseRequisites'})
-        if prereqlink is not None:
-            postback = prereqlink.get('href')
-            payload = self.dc.prepare_payload({}, postback)
-            self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-
-            soup = self.dc.make_soup()
-            course_requisites = self.parse_course_requisites(soup)
-
-            # navigate back to the term page
-            for bread in soup.find('span', {'id': 'portlet-breadcrumbs'}).find_all('a'):
-                if bread.text == 'Results':
-                    postback = bread.get('href')
-                    payload = self.dc.prepare_payload({}, postback)
-                    self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-                    break
-        else:
-            # navigate back to the term page
-            payload = self.dc.prepare_payload()
-            payload['__EVENTTARGET'] = 'pg0$V$lnkBack'
-            self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-
-        # construct course class from data
-        course = Course(course_code, course_title, course_term, course_credits, course_department, course_requisites)
-        return course
-    
-    def parse_course_requisites(self, soup):
-        requisites = {}
-        table = soup.find('tbody', {'class': 'gbody'})
-        if table is not None:
-            for row in table.find_all('tr'):
-                cells = row.find_all('td')
-                if len(cells) != 5:
-                    continue
-                _, _, rgroup, rtype, rname = tuple(cells)
-                rgroup_val = rgroup.text.strip()
-                rtype_val = rtype.text.strip()
-                rname_val = rname.text.strip()
-
-                if rgroup_val != '':
-                    group_num = int(rgroup_val)
-                    if group_num not in requisites:
-                        requisites[group_num] = []
-                    requisites[group_num].append((rtype_val, rname_val))
-        return requisites
-
-                
-
-    def try_nav_next_page(self, soup):
-        navigator = soup.find('div', {'class': 'letterNavigator'})
-        if navigator is not None:
-            navlinks = navigator.find_all('a')[::-1]
-            postback = None
-
-            for navlink in navlinks:
-                if navlink.text == 'Next page -->':
-                    postback = navlink.get('href')
-                    break
-            
-            if postback is not None:
-                payload = {
-                    'pg0$V$ddlTerm': self.current_term,
-                    'pg0$V$ddlDivision': 'UG'}
-                payload = self.dc.prepare_payload(payload, postback)
-                self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-                return True
-        return False
-
-    def try_nav_next_term(self):
-        if self.remaining_terms:
-
-            # navigate to next term
-            self.current_term = self.remaining_terms.pop(0)
-            payload = {
-                'pg0$V$ddlTerm': self.current_term,
-                'pg0$V$ddlDivision': 'UG',
-                'pg0$V$btnSearch': 'Search'}
-            payload = self.dc.prepare_payload(payload)
-            self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-
-            # navigate to first page
-            soup = self.dc.make_soup()
-            navigator = soup.find('div', {'class': 'letterNavigator'})
-            if navigator is not None:
-                navlinks = navigator.find_all('a')
-                if len(navlinks) > 1 and navlinks[0].text == '<-- Previous page':
-                    postback = navlinks[1].get('href')
-                    payload = {
-                        'pg0$V$ddlTerm': self.current_term,
-                        'pg0$V$ddlDivision': 'UG'}
-                    payload = self.dc.prepare_payload(payload, postback)
-                    self.dc.POST(self.COURSEURL, data=payload, params=self.QUERYPARAMS)
-
-            return True
-        return False
+        self.__session = requests.Session()
+        self.response = self.__session.post(url, data=payload)
