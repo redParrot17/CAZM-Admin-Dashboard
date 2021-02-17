@@ -113,7 +113,7 @@ def login():
                 flask_login.login_user(user)
                 mygcc.logout()
 
-                return flask.redirect(flask.url_for('index'))
+                return flask.redirect(flask.url_for('courses'))
     return flask.render_template('login.html', error=error)
 
 @app.route('/logout')
