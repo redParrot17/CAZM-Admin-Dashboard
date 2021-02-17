@@ -9,7 +9,6 @@ from os import urandom
 import re
 
 # declare shared variables
-database = Database('mysql.cnf')
 course_fetcher = None
 # cached_courses = []
 users = {}
@@ -139,8 +138,7 @@ def index():
 @login_required
 def courses():
     global course_fetcher
-    # global cached_courses
-    global database
+    database = Database('mysql.cnf')
 
     if flask.request.method == 'POST':
         json = flask.request.get_json()
@@ -206,7 +204,6 @@ def courses():
 
         # fetch the courses to display on the webpage
         all_courses = list(database.get_all_courses())  # if not is_running else cached_courses
-        # cached_courses = all_courses
 
         # respond with the requested webpage
         return flask.render_template('courses.html', syncing=is_running, data=all_courses)
