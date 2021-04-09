@@ -343,7 +343,10 @@ class ScraperSession(threading.Thread):
     def course_callback(self, course):
         database = self.database
         semester, year = course.term.rsplit(' ', 1)
+
+        semester = semester.replace('Semester', '').strip()
         year = int(year)
+
         database.update_course(
             course.code,
             semester,

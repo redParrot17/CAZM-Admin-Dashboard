@@ -156,6 +156,8 @@ def courses():
                 else:
                     database.update_course(
                         code=course['code'],
+                        old_semester=None,
+                        old_year=None,
                         name=course['name'],
                         hours=course['credits'],
                         semester=course['semester'],
@@ -212,3 +214,7 @@ def courses():
 @login_required
 def students():
     return flask.render_template('students.html')
+
+
+if __name__ == '__main__':
+    app.run()
