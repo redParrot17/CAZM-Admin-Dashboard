@@ -86,10 +86,12 @@ def validate_dict_integrity(course):
 def load_user(user_id):
     return users.get(user_id)
 
+
 @login_manager.unauthorized_handler
 def unauthorized():
     """This fires whenever the user tries accessing a secure page without being logged in."""
     return flask.redirect(flask.url_for('login'))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -116,6 +118,7 @@ def login():
                 return flask.redirect(flask.url_for('courses'))
     return flask.render_template('login.html', error=error)
 
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -129,10 +132,12 @@ def logout():
 
     return flask.redirect(flask.url_for('login'))
 
+
 @app.route('/')
 @login_required
 def index():
     return flask.render_template('index.html')
+
 
 @app.route('/courses', methods=['GET', 'POST'])
 @login_required
@@ -148,6 +153,7 @@ def courses():
             to_change = json.get('change')
             to_delete = json.get('delete')
             to_resync = json.get('sync')
+            to_term = json.get('term')
 
             if to_create is not None:
                 course, error = validate_dict_integrity(to_create)
@@ -197,6 +203,9 @@ def courses():
                     course_fetcher.stop()
                     course_fetcher = None
 
+            if to_term is not None:
+                database.set_current_semester(to_term)
+
             return flask.jsonify(success=True)
         return flask.jsonify(success=False)
     else:
@@ -207,8 +216,12 @@ def courses():
         # fetch the courses to display on the webpage
         all_courses = list(database.get_all_courses())  # if not is_running else cached_courses
 
+        # fetch the current semester
+        current_semester = database.get_current_semester()
+
         # respond with the requested webpage
-        return flask.render_template('courses.html', syncing=is_running, data=all_courses)
+        return flask.render_template('courses.html', syncing=is_running, data=all_courses, semester=current_semester)
+
 
 @app.route('/students')
 @login_required

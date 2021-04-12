@@ -9,6 +9,29 @@ class Database:
     def close(self):
         self.db.close()
 
+    def get_current_semester(self):
+        cursor = self.db.cursor(buffered=True)
+        sql = "SELECT Semester, Year FROM CurrentSemester;"
+        cursor.execute(sql)
+        result = cursor.fetchone()
+        if result is not None:
+            semester, year = result
+            return f'{semester} {year}'
+        return ''
+
+    def set_current_semester(self, semester):
+        cursor = self.db.cursor(buffered=True)
+
+        sql = "DELETE FROM CurrentSemester;"
+        cursor.execute(sql)
+
+        semester, year = semester.rsplit(' ', 1)
+        year = int(year)
+
+        sql = "INSERT INTO CurrentSemester (Semester, Year) VALUES (%s, %s);"
+        arg = (semester, year,)
+        cursor.execute(sql, arg)
+
     def get_course(self, course_code):
         cursor = self.db.cursor(buffered=True)
         sql = "SELECT name, credits, semester, year FROM COURSE WHERE course_code=%s;"
@@ -120,4 +143,3 @@ class Database:
             credits=hours, 
             term=f'{semester} {year}',
             requisites=requisites)
-    

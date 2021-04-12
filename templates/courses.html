@@ -58,6 +58,8 @@
             <!-- <p>Description of what this data represents.</p> -->
 
             <div id="toolbar">
+
+                <!--  Resync Courses Button  -->
                 <button id="resync" class="btn btn-secondary">
                     {% if syncing %}
                     <i class="fa fa-sync"></i> Abort
@@ -65,15 +67,26 @@
                     <i class="fa fa-sync"></i> Resync
                     {% endif %}
                 </button>
+
+                <!--  Create New Course Button  -->
                 <button id="create" class="btn btn-secondary">
                     <i class="fa fa-plus"></i> Create
                 </button>
+
+                <!--  Edit Existing Course Button  -->
                 <button id="change" class="btn btn-secondary" disabled>
                     <i class="fa fa-edit"></i> Edit
                 </button>
+
+                <!--  Delete Existing Course Button  -->
                 <button id="remove" class="btn btn-danger" disabled>
                     <i class="fa fa-trash"></i> Delete
                 </button>
+
+                <!--  Select Current Semester  -->
+                <select id="currentSemester" class="border form-control">
+                </select>
+
             </div>
 
             <table 
@@ -285,7 +298,8 @@
 
     <script type="text/javascript">
         setSyncing('{{syncing|tojson}}');
-        setData(JSON.parse('{{data|tojson}}'))
+        setData(JSON.parse('{{data|tojson}}'));
+        setSemester('{{semester}}');
     </script>
 
     <script>

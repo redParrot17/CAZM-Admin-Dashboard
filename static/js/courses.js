@@ -57,6 +57,35 @@ function setData(d) {
     $coursesTable.bootstrapTable('load', data);
 }
 
+function setSemester(semester) {
+    let semesters = getUniqueSemesters();
+    let $semesterChooser = $('#currentSemester');
+    let included = false;
+
+    semesters.forEach(function(term) {
+        if (term === semester && !included) {
+            $semesterChooser.html($semesterChooser.html() + `<option selected>${term}</option>`);
+            included = true;
+        } else {
+            $semesterChooser.html($semesterChooser.html() + `<option>${term}</option>`);
+        }
+    })
+
+    if (!included) {
+        $semesterChooser.html($semesterChooser.html() + `<option selected>${semester}</option>`);
+    }
+}
+
+function getUniqueSemesters() {
+    let semesters = [];
+    data.forEach(function(course) {
+        if (semesters.indexOf(course.term) < 0) {
+            semesters.push(course.term);
+        }
+    });
+    return semesters;
+}
+
 
 // Requisites //
 
@@ -170,6 +199,12 @@ $(document).ready(function() {
 
         // delete button should only be clickable when at least one thing is selected
         $deleteCoursesBtn.prop('disabled', selections.length === 0);
+    });
+
+    $('#currentSemester').change(function() {
+        let selection = $(this).find('option:selected');
+        let selectedSemester = selection.text();
+        httpPost({ term: selectedSemester });
     });
 
     // Structure of the requisite tables
