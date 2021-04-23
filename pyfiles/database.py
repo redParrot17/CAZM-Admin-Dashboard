@@ -55,7 +55,8 @@ class Database:
             yield self._map_to_course(code, name, hours, semester, year, requisites)
 
     def update_course(self, code, old_semester, old_year, name, hours, semester, year, requisites):
-        self.delete_courses([(code, old_semester, old_year)])
+        if old_semester is not None and old_year is not None:
+            self.delete_courses([(code, old_semester, old_year)])
         cursor = self.db.cursor(buffered=True)
         sql = "INSERT INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
               "VALUES(%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE " \

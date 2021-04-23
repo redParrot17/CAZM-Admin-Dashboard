@@ -349,8 +349,8 @@ class ScraperSession(threading.Thread):
 
         database.update_course(
             course.code,
-            semester,
-            year,
+            None,
+            None,
             course.name,
             course.hours,
             semester,
