@@ -126,6 +126,8 @@ class Database:
             return 1
         if requisite_type == 'corequisite':
             return 2
+        if requisite_type == 'prohibited':
+            return 3
         return 0
 
     @staticmethod
@@ -134,6 +136,8 @@ class Database:
             return 'prerequisite'
         if requisite_type_id == 2:
             return 'corequisite'
+        if requisite_type_id == 3:
+            return 'prohibited'
         return 'other'
 
     @staticmethod

@@ -1,9 +1,7 @@
 from pyfiles.gccutils.datacollection import DataCollection
 from pyfiles.gccutils.course import Course
 from pyfiles.database import Database
-from bs4 import BeautifulSoup
 import multiprocessing
-import requests
 import threading
 import time
 import re
@@ -290,6 +288,8 @@ class ScraperSession(threading.Thread):
                 return 'prerequisite'
             if _req_type.startswith('Corequisite'):
                 return 'corequisite'
+            if _req_type.startswith('Prohibited'):
+                return 'prohibited'
             return 'other'
 
         def parse_req_name(_req_name: str) -> str:
@@ -391,4 +391,3 @@ class AsyncCourseScraper:
         password = self.__password
         db_config = self.__db_config
         self.__sessions = [ScraperSession(username, password, db_config, i, cpu_count) for i in range(cpu_count)]
-
