@@ -55,12 +55,23 @@ class Database:
             yield self._map_to_course(code, name, hours, semester, year, requisites)
 
     def update_course(self, code, old_semester, old_year, name, hours, semester, year, requisites):
-        if old_semester is not None and old_year is not None:
+
+        # check if the course is explicitly being edited
+        editing = old_semester is not None and old_year is not None
+
+        if editing:
             self.delete_courses([(code, old_semester, old_year)])
+
         cursor = self.db.cursor(buffered=True)
-        sql = "INSERT INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
-              "VALUES(%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE " \
-              "NAME=VALUES(NAME), CREDITS=VALUES(CREDITS);"
+
+        if not editing and hours == 0:
+            sql = "INSERT INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
+                  "VALUES(%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE NAME=VALUES(NAME);"
+        else:
+            sql = "INSERT INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
+                  "VALUES(%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE " \
+                  "NAME=VALUES(NAME), CREDITS=VALUES(CREDITS);"
+
         args = (code, name, hours, semester, year)
         cursor.execute(sql, args)
         cursor.close()
