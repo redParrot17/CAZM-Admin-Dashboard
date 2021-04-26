@@ -56,6 +56,7 @@ class Database:
 
     def update_course(self, code, old_semester, old_year, name, hours, semester, year, requisites):
 
+        name = name.replace('"', "'")
         # check if the course is explicitly being edited
         editing = old_semester is not None and old_year is not None
 
