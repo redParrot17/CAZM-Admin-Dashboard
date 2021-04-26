@@ -65,8 +65,8 @@ class Database:
         cursor = self.db.cursor(buffered=True)
 
         if not editing and hours == 0:
-            sql = "INSERT INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
-                  "VALUES(%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE NAME=VALUES(NAME);"
+            sql = "INSERT IGNORE INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
+                  "VALUES(%s, %s, %s, %s, %s);"
         else:
             sql = "INSERT INTO COURSE (COURSE_CODE, NAME, CREDITS, SEMESTER, YEAR) " \
                   "VALUES(%s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE " \
